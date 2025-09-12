@@ -81,7 +81,11 @@ function GetLog(_ref) {
         file_text_writeln(fo);
     }
     file_text_close(fo);
-
+	
+	var fileName = string("resultado (" + string(countFile) + ").txt");
+	
     global.Buscando = false;
+    show_message("Arquivo criado com sucesso!");
     return results;
 }
+

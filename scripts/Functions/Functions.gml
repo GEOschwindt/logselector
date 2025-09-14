@@ -11,6 +11,11 @@ function GetLog(_ref) {
     }
     
     global.Buscando = true;
+    
+    // Inicializar variáveis de progresso
+    global.ProgressoTotal = 0;
+    global.ProgressoAtual = 0;
+    global.ProgressoTexto = "Iniciando busca...";
 
     var _logPath = working_directory + "logs\\";
     var _savePath = working_directory + "saved\\resultado.txt";
@@ -41,10 +46,20 @@ function GetLog(_ref) {
         global.Buscando = false;
         return results;
     }
+    
+    // Configurar progresso total
+    global.ProgressoTotal = ds_list_size(file_list);
+    global.ProgressoAtual = 0;
+    global.ProgressoTexto = "Verificando arquivos...";
 
     for (var i = 0; i < ds_list_size(file_list); i++) {
         var filename = ds_list_find_value(file_list, i);
         var full_path = _logPath + filename;
+        
+        // Atualizar progresso
+        global.ProgressoAtual = i + 1;
+        var percentual = round((global.ProgressoAtual / global.ProgressoTotal) * 100);
+        global.ProgressoTexto = "Verificando: " + filename + " (" + string(percentual) + "%)";
 
         // Adicionar cabeçalho do arquivo
         array_push(results, "--- " + filename + " ---");
@@ -58,10 +73,19 @@ function GetLog(_ref) {
         var jsonBuffer = "";
         var braceCount = 0;
         var foundInFile = false; // Flag para verificar se encontrou algo neste arquivo
+        var currentLine = 0; // Contador de linha atual
+        var bodyStartLine = 0; // Linha onde o corpo JSON começou
+        var bodyEndLine = 0; // Linha onde o corpo JSON terminou
 
         while (!file_text_eof(file)) {
             var line = file_text_read_string(file);
             file_text_readln(file);
+            currentLine++;
+
+            // Se estamos começando um novo corpo JSON
+            if (braceCount == 0 && string_length(string_trim(jsonBuffer)) == 0) {
+                bodyStartLine = currentLine;
+            }
 
             jsonBuffer += line + "\n";
 
@@ -71,7 +95,12 @@ function GetLog(_ref) {
             braceCount += (openBraces - closeBraces);
 
             if (braceCount == 0 && string_length(string_trim(jsonBuffer)) > 0) {
+                bodyEndLine = currentLine; // Marcar linha de fim do corpo
+                
                 if (string_pos(search, jsonBuffer) > 0) {
+                    // Adicionar informações de linha antes do corpo
+                    var lineInfo = "Linhas: " + string(bodyStartLine) + " - " + string(bodyEndLine);
+                    array_push(results, lineInfo);
                     array_push(results, jsonBuffer);
                     foundInFile = true;
                 }
@@ -88,7 +117,16 @@ function GetLog(_ref) {
 
     // Calcular estatísticas antes de destruir a lista
     var totalFiles = ds_list_size(file_list);
-    var totalResults = array_length(results);
+    
+    // Contar apenas os corpos JSON encontrados (não as linhas informativas)
+    var totalResults = 0;
+    for (var k = 0; k < array_length(results); k++) {
+        var resultLine = results[k];
+        // Verificar se é um corpo JSON (contém chaves de abertura e fechamento)
+        if (string_pos("{", resultLine) > 0 && string_pos("}", resultLine) > 0) {
+            totalResults++;
+        }
+    }
     
     ds_list_destroy(file_list);
 
@@ -109,6 +147,9 @@ function GetLog(_ref) {
 	var fileName = string("resultado (" + string(countFile) + ").txt");
 	
     global.Buscando = false;
+    
+    // Finalizar progresso
+    global.ProgressoTexto = "Busca concluída!";
     
     var message = "Busca concluída!\n";
     message += "Arquivos processados: " + string(totalFiles) + "\n";

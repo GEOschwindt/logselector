@@ -14,6 +14,4 @@ function Globals(){
 	global.FoundInCurrentFile = false;
 	global.CurrentFile = "";
 	global.StartTime = 0;
-	
-	global.configPath = "C:\Users\usuario\AppData\Local\LOGSELECTOR";
 }

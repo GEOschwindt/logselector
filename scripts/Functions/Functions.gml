@@ -124,7 +124,7 @@ function ProcessNextFile() {
         if (braceCount == 0 && string_length(string_trim(jsonBuffer)) > 0) {
             bodyEndLine = currentLine;
             
-            if (string_pos(global.SearchTerm, jsonBuffer) > 0) {
+            if (string_pos(string_upper(global.SearchTerm), string_upper(jsonBuffer)) > 0) {
                 // Adicionar informações de linha antes do corpo
                 var lineInfo = "Linhas: " + string(bodyStartLine) + " - " + string(bodyEndLine);
                 array_push(global.SearchResults, lineInfo);

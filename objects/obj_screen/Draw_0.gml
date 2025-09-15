@@ -43,17 +43,18 @@ draw_text(buttonLimparX + 10, buttonLimparY + 8, "Limpar");
 // EXIBIR PROGRESSO DE BUSCA
 if (global.Buscando) {
     var progressY = buttonBuscarY + buttonHeight + 30;
+    var progressBarWidth = room_width - inputReferenceX - inputReferenceX; // Largura da barra considerando margens
     
     // Desenhar fundo da barra de progresso
     draw_set_color(c_white);
-    draw_rectangle(inputReferenceX, progressY, room_width - inputReferenceX, progressY + 20, false);
+    draw_rectangle(inputReferenceX, progressY, inputReferenceX + progressBarWidth, progressY + 20, false);
     draw_set_color(c_black);
-    draw_rectangle(inputReferenceX, progressY, room_width - inputReferenceX, progressY + 20, true);
+    draw_rectangle(inputReferenceX, progressY, inputReferenceX + progressBarWidth, progressY + 20, true);
     
     // Calcular largura da barra de progresso
     var progressWidth = 0;
     if (global.ProgressoTotal > 0) {
-        progressWidth = ((room_width - inputReferenceX - 4) * global.ProgressoAtual) / global.ProgressoTotal;
+        progressWidth = ((progressBarWidth - 4) * global.ProgressoAtual) / global.ProgressoTotal;
     }
     
     // Desenhar barra de progresso
@@ -62,11 +63,13 @@ if (global.Buscando) {
         draw_rectangle(inputReferenceX + 2, progressY + 2, inputReferenceX + 2 + progressWidth, progressY + 18, false);
     }
     
-    // Exibir texto de progresso
-    draw_set_color(c_black);
-    draw_text(inputReferenceX + 5, progressY + 5, global.ProgressoTexto);
-    
     // Exibir contadores
     var counterY = progressY + 25;
+	draw_set_color(c_black)
     draw_text(inputReferenceX + 5, counterY, "Arquivos: " + string(global.ProgressoAtual) + " / " + string(global.ProgressoTotal));
+    
+    // Exibir texto de progresso (arquivo atual) abaixo da barra
+    var textY = progressY + 45;
+    draw_set_color(c_black);
+    draw_text(inputReferenceX + 5, textY, global.ProgressoTexto);
 }

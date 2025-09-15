@@ -39,3 +39,34 @@ draw_set_color(borderColor);
 draw_rectangle(buttonLimparX, buttonLimparY, buttonLimparX + buttonWidth, buttonLimparY + buttonHeight, true);
 draw_set_color(textColor);
 draw_text(buttonLimparX + 10, buttonLimparY + 8, "Limpar");
+
+// EXIBIR PROGRESSO DE BUSCA
+if (global.Buscando) {
+    var progressY = buttonBuscarY + buttonHeight + 30;
+    
+    // Desenhar fundo da barra de progresso
+    draw_set_color(c_white);
+    draw_rectangle(inputReferenceX, progressY, room_width - inputReferenceX, progressY + 20, false);
+    draw_set_color(c_black);
+    draw_rectangle(inputReferenceX, progressY, room_width - inputReferenceX, progressY + 20, true);
+    
+    // Calcular largura da barra de progresso
+    var progressWidth = 0;
+    if (global.ProgressoTotal > 0) {
+        progressWidth = ((room_width - inputReferenceX - 4) * global.ProgressoAtual) / global.ProgressoTotal;
+    }
+    
+    // Desenhar barra de progresso
+    if (progressWidth > 0) {
+        draw_set_color(c_green);
+        draw_rectangle(inputReferenceX + 2, progressY + 2, inputReferenceX + 2 + progressWidth, progressY + 18, false);
+    }
+    
+    // Exibir texto de progresso
+    draw_set_color(c_black);
+    draw_text(inputReferenceX + 5, progressY + 5, global.ProgressoTexto);
+    
+    // Exibir contadores
+    var counterY = progressY + 25;
+    draw_text(inputReferenceX + 5, counterY, "Arquivos: " + string(global.ProgressoAtual) + " / " + string(global.ProgressoTotal));
+}

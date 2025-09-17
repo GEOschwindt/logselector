@@ -98,9 +98,67 @@ function ProcessNextFile() {
         return;
     }
 
+    // Primeiro, detectar se é um arquivo JSON ou texto simples
+    var isJsonFile = DetectFileType(file);
+    file_text_close(file);
+    
+    // Reabrir arquivo para processamento
+    file = file_text_open_read(full_path);
+    
+    global.FoundInCurrentFile = false;
+    
+    if (isJsonFile) {
+        // Processar como arquivo JSON (lógica original)
+        ProcessJsonFile(file);
+    } else {
+        // Processar como arquivo de texto simples
+        ProcessTextFile(file);
+    }
+    
+    file_text_close(file);
+    
+    // Se não encontrou nada neste arquivo, remover o cabeçalho
+    if (!global.FoundInCurrentFile && array_length(global.SearchResults) > 0) {
+        array_pop(global.SearchResults); // Remove o último elemento (cabeçalho)
+    }
+    
+    // Avançar para o próximo arquivo
+    global.CurrentFileIndex++;
+}
+
+function DetectFileType(file) {
+    // Ler as primeiras linhas para detectar se é JSON
+    var jsonIndicators = 0;
+    var textIndicators = 0;
+    var lineCount = 0;
+    var maxLines = 10; // Verificar apenas as primeiras 10 linhas
+    
+    while (!file_text_eof(file) && lineCount < maxLines) {
+        var line = string_trim(file_text_readln(file));
+        lineCount++;
+        
+        if (string_length(line) > 0) {
+            // Indicadores de JSON
+            if (string_pos("{", line) > 0 || string_pos("}", line) > 0 || 
+                string_pos("[", line) > 0 || string_pos("]", line) > 0 ||
+                string_pos("\"", line) > 0) {
+                jsonIndicators++;
+            }
+            
+            // Indicadores de texto simples
+            if (string_pos(":", line) > 0 && string_pos("\"", line) == 0) {
+                textIndicators++;
+            }
+        }
+    }
+    
+    // Se há mais indicadores JSON, é provavelmente um arquivo JSON
+    return jsonIndicators > textIndicators;
+}
+
+function ProcessJsonFile(file) {
     var jsonBuffer = "";
     var braceCount = 0;
-    global.FoundInCurrentFile = false;
     var currentLine = 0;
     var bodyStartLine = 0;
     var bodyEndLine = 0;
@@ -134,15 +192,24 @@ function ProcessNextFile() {
             jsonBuffer = "";
         }
     }
-    file_text_close(file);
+}
+
+function ProcessTextFile(file) {
+    var currentLine = 0;
     
-    // Se não encontrou nada neste arquivo, remover o cabeçalho
-    if (!global.FoundInCurrentFile && array_length(global.SearchResults) > 0) {
-        array_pop(global.SearchResults); // Remove o último elemento (cabeçalho)
+    while (!file_text_eof(file)) {
+        var line = file_text_readln(file);
+        currentLine++;
+        
+        // Verificar se a linha contém a referência
+        if (string_pos(string_upper(global.SearchTerm), string_upper(line)) > 0) {
+            // Adicionar informação da linha e o conteúdo
+            var lineInfo = "Linha: " + string(currentLine);
+            array_push(global.SearchResults, lineInfo);
+            array_push(global.SearchResults, line);
+            global.FoundInCurrentFile = true;
+        }
     }
-    
-    // Avançar para o próximo arquivo
-    global.CurrentFileIndex++;
 }
 
 function FinishSearch() {
@@ -151,11 +218,12 @@ function FinishSearch() {
     // Calcular estatísticas
     var totalFiles = ds_list_size(global.FileList);
     
-    // Contar apenas os corpos JSON encontrados
+    // Contar todos os resultados encontrados (JSON e texto)
     var totalResults = 0;
     for (var k = 0; k < array_length(global.SearchResults); k++) {
         var resultLine = global.SearchResults[k];
-        if (string_pos("{", resultLine) > 0 && string_pos("}", resultLine) > 0) {
+        // Contar linhas que contêm dados (não cabeçalhos ou informações de linha)
+        if (string_pos("--- ", resultLine) == 0 && string_pos("Linha:", resultLine) == 0 && string_pos("Linhas:", resultLine) == 0) {
             totalResults++;
         }
     }

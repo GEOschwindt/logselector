@@ -20,15 +20,17 @@ function GetLog(_ref) {
     global.ProgressoAtual = 0;
     global.ProgressoTexto = "Iniciando busca...";
     global.SearchResults = [];
+	
+	var _saveFile = MomentInfo().day + "result.txt";
 
-    var _logPath = working_directory + "logs\\";
-    var _savePath = working_directory + "saved\\resultado.txt";
+    var _logPath = working_directory + global.DefalutPathLogs +"\\";
+    var _savePath = working_directory + global.DefaultPathResult + "\\" + _saveFile;
 
     if (!directory_exists(_logPath)) {
         directory_create(_logPath);
     }
-    if (!directory_exists(working_directory + "saved\\")) {
-        directory_create(working_directory + "saved\\");
+    if (!directory_exists(working_directory + global.DefaultPathResult + "\\")) {
+        directory_create(working_directory + global.DefaultPathResult + "\\");
     }
 
     global.LogPath = _logPath;
@@ -162,6 +164,8 @@ function ProcessJsonFile(file) {
     var currentLine = 0;
     var bodyStartLine = 0;
     var bodyEndLine = 0;
+    var inJsonObject = false;
+    var foundTerm = false;
 
     while (!file_text_eof(file)) {
         var line = file_text_readln(file);
@@ -170,27 +174,48 @@ function ProcessJsonFile(file) {
         // Se estamos começando um novo corpo JSON
         if (braceCount == 0 && string_length(string_trim(jsonBuffer)) == 0) {
             bodyStartLine = currentLine;
+            inJsonObject = true;
         }
 
         jsonBuffer += line + "\n";
+
+        // Verificar se encontrou o termo de busca na linha atual
+        if (string_pos(string_upper(global.SearchTerm), string_upper(line)) > 0) {
+            foundTerm = true;
+        }
 
         // Contar chaves de forma mais eficiente
         var openBraces = string_count("{", line);
         var closeBraces = string_count("}", line);
         braceCount += (openBraces - closeBraces);
 
-        if (braceCount == 0 && string_length(string_trim(jsonBuffer)) > 0) {
+        // Quando o JSON está completo (braceCount == 0) e temos conteúdo
+        if (braceCount == 0 && string_length(string_trim(jsonBuffer)) > 0 && inJsonObject) {
             bodyEndLine = currentLine;
             
-            if (string_pos(string_upper(global.SearchTerm), string_upper(jsonBuffer)) > 0) {
+            // Se encontrou o termo de busca neste JSON, adicionar ao resultado
+            if (foundTerm) {
                 // Adicionar informações de linha antes do corpo
                 var lineInfo = "Linhas: " + string(bodyStartLine) + " - " + string(bodyEndLine);
                 array_push(global.SearchResults, lineInfo);
                 array_push(global.SearchResults, jsonBuffer);
                 global.FoundInCurrentFile = true;
             }
+            
+            // Resetar para o próximo JSON
             jsonBuffer = "";
+            inJsonObject = false;
+            foundTerm = false;
         }
+    }
+    
+    // Se chegou ao final do arquivo e ainda temos um JSON incompleto mas com o termo encontrado
+    if (braceCount > 0 && foundTerm && string_length(string_trim(jsonBuffer)) > 0) {
+        bodyEndLine = currentLine;
+        var lineInfo = "Linhas: " + string(bodyStartLine) + " - " + string(bodyEndLine) + " (JSON incompleto)";
+        array_push(global.SearchResults, lineInfo);
+        array_push(global.SearchResults, jsonBuffer);
+        global.FoundInCurrentFile = true;
     }
 }
 
@@ -262,6 +287,7 @@ function FinishSearch() {
         message += "Arquivos processados: " + string(totalFiles) + "\n";
         message += "Tempo de execução: " + string(executionTime) + " segundos\n";
         message += "Termo pesquisado: '" + global.SearchTerm + "'";
+		SaveLogNotFound();
     }
     
     // Limpar variáveis globais
@@ -274,4 +300,57 @@ function FinishSearch() {
     show_message(message);
 }
 
+function SaveLogNotFound() {
+	var moment = MomentInfo().moment;
+	var fileTitle = MomentInfo().day + "notFound.txt";
+	var savePath = working_directory + global.DefaultPathResult + "\\" + fileTitle;
+	
+	// Garantir que o diretório results existe
+	if (!directory_exists(working_directory + global.DefaultPathResult + "\\")) {
+		directory_create(working_directory + global.DefaultPathResult + "\\");
+	}
+	
+	var file = file_text_open_append(savePath);
+	file_text_write_string(file, moment + " Tentativa de encontrar '" + string(global.SearchTerm) + "'");
+	file_text_writeln(file);
+	file_text_close(file);
+}
 
+function DateTime() {
+	return {
+		year: current_year,
+		month: current_month,
+		week: current_weekday,
+		day: current_day,
+		hour: current_hour,
+		minute: current_minute,
+		second: current_second,
+	};
+}
+
+function FormatNumberWithZero(num) {
+	var str = string(num);
+	if (string_length(str) == 1) {
+		return "0" + str;
+	}
+	return str;
+}
+
+function DateTimeString() {
+	return {
+		year: string(current_year),
+		month: FormatNumberWithZero(current_month),
+		week: FormatNumberWithZero(current_weekday),
+		day: FormatNumberWithZero(current_day),
+		hour: FormatNumberWithZero(current_hour),
+		minute: FormatNumberWithZero(current_minute),
+		second: FormatNumberWithZero(current_second),
+	}
+}
+	
+function MomentInfo() {
+	return {
+		moment: "[" + DateTimeString().hour + ":" + DateTimeString().minute + ":" + DateTimeString().second + "]",
+		day: DateTimeString().year + DateTimeString().month + DateTimeString().day
+	};
+}

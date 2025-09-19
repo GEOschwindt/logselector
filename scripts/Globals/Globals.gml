@@ -14,4 +14,7 @@ function Globals(){
 	global.FoundInCurrentFile = false;
 	global.CurrentFile = "";
 	global.StartTime = 0;
+	
+	global.DefalutPathLogs = "logs";
+	global.DefaultPathResult = "results";
 }

@@ -17,4 +17,5 @@ function Globals(){
 	
 	global.DefalutPathLogs = "logs";
 	global.DefaultPathResult = "results";
+	global.InaccessibleFiles = []; // Lista de arquivos que não puderam ser abertos
 }

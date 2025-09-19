@@ -1,11 +1,13 @@
 function GetLog(_ref) {
     var search = string(_ref);
     
-    // Validação de entrada
     if (string_length(search) == 0) {
         global.Error = true;
         global.ErrorMessage = "Referência não pode estar vazia";
         global.Buscando = false;
+		
+		show_message("Referência não pode estar vazia!");
+		
         return [];
     }
     
@@ -20,6 +22,7 @@ function GetLog(_ref) {
     global.ProgressoAtual = 0;
     global.ProgressoTexto = "Iniciando busca...";
     global.SearchResults = [];
+    global.InaccessibleFiles = []; // Inicializar lista de arquivos inacessíveis
 	
 	var _saveFile = MomentInfo().day + "result.txt";
 
@@ -37,7 +40,9 @@ function GetLog(_ref) {
     global.SavePath = _savePath;
 
     var file_list = ds_list_create();
-    var f = file_find_first(_logPath + "*.txt", fa_none);
+    
+    // Buscar TODOS os arquivos na pasta logs
+    var f = file_find_first(_logPath + "*", fa_none);
     if (f != "") {
         repeat (1000) { // Aumentar limite para processar todos os arquivos
             ds_list_add(file_list, f);
@@ -50,14 +55,15 @@ function GetLog(_ref) {
 
     if (ds_list_empty(file_list)) {
         global.Error = true;
-        global.ErrorMessage = "Nenhum arquivo .txt encontrado na pasta logs";
+        global.ErrorMessage = "Nenhum arquivo encontrado na pasta logs";
         ds_list_destroy(file_list);
         global.Buscando = false;
         global.SearchState = 0;
+		show_message("Nenhum arquivo encontrado na pasta logs");
         return [];
     }
     
-    // Configurar progresso total
+    // Configurar progresso total (TODOS os arquivos encontrados)
     global.ProgressoTotal = ds_list_size(file_list);
     global.ProgressoAtual = 0;
     global.ProgressoTexto = "Verificando arquivos...";
@@ -90,15 +96,19 @@ function ProcessNextFile() {
     var percentual = round((global.ProgressoAtual / global.ProgressoTotal) * 100);
     global.ProgressoTexto = "Verificando: " + filename + " (" + string(percentual) + "%)";
     
-    // Adicionar cabeçalho do arquivo
-    array_push(global.SearchResults, "--- " + filename + " ---");
-    
+    // TRY-CATCH: Tentar abrir o arquivo
     var file = file_text_open_read(full_path);
     if (file == -1) {
-        // Arquivo não pode ser aberto, pular para o próximo
+        // CATCH: Arquivo não pode ser aberto - registrar como inacessível
+        array_push(global.InaccessibleFiles, filename);
+        global.ProgressoTexto = "Ignorando: " + filename + " (arquivo inacessível)";
         global.CurrentFileIndex++;
         return;
     }
+
+    // TRY: Arquivo aberto com sucesso - processar
+    // Adicionar cabeçalho do arquivo
+    array_push(global.SearchResults, "--- " + filename + " ---");
 
     // Primeiro, detectar se é um arquivo JSON ou texto simples
     var isJsonFile = DetectFileType(file);
@@ -106,6 +116,17 @@ function ProcessNextFile() {
     
     // Reabrir arquivo para processamento
     file = file_text_open_read(full_path);
+    
+    // Verificar novamente se conseguiu reabrir
+    if (file == -1) {
+        // CATCH: Se não conseguiu reabrir, registrar arquivo e remover cabeçalho
+        array_push(global.InaccessibleFiles, filename);
+        if (array_length(global.SearchResults) > 0) {
+            array_pop(global.SearchResults); // Remove o cabeçalho
+        }
+        global.CurrentFileIndex++;
+        return;
+    }
     
     global.FoundInCurrentFile = false;
     
@@ -242,6 +263,7 @@ function FinishSearch() {
     
     // Calcular estatísticas
     var totalFiles = ds_list_size(global.FileList);
+    var processedFiles = global.ProgressoAtual; // Arquivos que foram processados (incluindo ignorados)
     
     // Contar todos os resultados encontrados (JSON e texto)
     var totalResults = 0;
@@ -278,17 +300,24 @@ function FinishSearch() {
         file_text_close(fo);
         
         message = "Busca concluída!\n";
-        message += "Arquivos processados: " + string(totalFiles) + "\n";
+        message += "Arquivos encontrados: " + string(totalFiles) + "\n";
+        message += "Arquivos processados: " + string(processedFiles) + "\n";
+        message += "Arquivos inacessíveis: " + string(array_length(global.InaccessibleFiles)) + "\n";
         message += "Resultados encontrados: " + string(totalResults) + "\n";
         message += "Tempo de execução: " + string(executionTime) + " segundos\n";
         message += "Arquivo salvo: " + string_replace(finalSavePath, working_directory, "");
     } else {
         message = "Nenhum log encontrado!\n";
-        message += "Arquivos processados: " + string(totalFiles) + "\n";
+        message += "Arquivos encontrados: " + string(totalFiles) + "\n";
+        message += "Arquivos processados: " + string(processedFiles) + "\n";
+        message += "Arquivos inacessíveis: " + string(array_length(global.InaccessibleFiles)) + "\n";
         message += "Tempo de execução: " + string(executionTime) + " segundos\n";
         message += "Termo pesquisado: '" + global.SearchTerm + "'";
 		SaveLogNotFound();
     }
+    
+    // Salvar arquivos inacessíveis se houver
+    SaveInaccessibleFiles();
     
     // Limpar variáveis globais
     ds_list_destroy(global.FileList);
@@ -296,6 +325,7 @@ function FinishSearch() {
     global.SearchState = 0;
     global.Buscando = false;
     global.ProgressoTexto = "Busca concluída!";
+    global.InaccessibleFiles = []; // Limpar lista de arquivos inacessíveis
     
     show_message(message);
 }
@@ -316,6 +346,45 @@ function SaveLogNotFound() {
 	file_text_close(file);
 }
 
+function SaveInaccessibleFiles() {
+	if (array_length(global.InaccessibleFiles) == 0) {
+		return; // Não há arquivos inacessíveis para salvar
+	}
+	
+	var day = MomentInfo().day;
+	var fileTitle = day + "inaccessible.txt";
+	var savePath = working_directory + global.DefaultPathResult + "\\" + fileTitle;
+	
+	// Garantir que o diretório results existe
+	if (!directory_exists(working_directory + global.DefaultPathResult + "\\")) {
+		directory_create(working_directory + global.DefaultPathResult + "\\");
+	}
+	
+	var file = file_text_open_write(savePath);
+	file_text_write_string(file, day);
+	file_text_writeln(file);
+	file_text_writeln(file);
+	
+	// Escrever lista de arquivos inacessíveis
+	for (var i = 0; i < array_length(global.InaccessibleFiles); i++) {
+		file_text_write_string(file, global.InaccessibleFiles[i]);
+		file_text_writeln(file);
+	}
+	
+	// Adicionar duas quebras de linha no final
+	file_text_writeln(file);
+	file_text_writeln(file);
+	file_text_close(file);
+}
+
+function FormatNumberWithZero(num) {
+	var str = string(num);
+	if (string_length(str) == 1) {
+		return "0" + str;
+	}
+	return str;
+}
+
 function DateTime() {
 	return {
 		year: current_year,
@@ -326,14 +395,6 @@ function DateTime() {
 		minute: current_minute,
 		second: current_second,
 	};
-}
-
-function FormatNumberWithZero(num) {
-	var str = string(num);
-	if (string_length(str) == 1) {
-		return "0" + str;
-	}
-	return str;
 }
 
 function DateTimeString() {
